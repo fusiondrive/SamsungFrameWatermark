@@ -1,0 +1,40 @@
+package dev.steve.samsungframewatermark
+
+import de.robv.android.xposed.IXposedHookLoadPackage
+import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XposedBridge
+import de.robv.android.xposed.callbacks.XC_LoadPackage
+import de.robv.android.xposed.XposedHelpers
+
+class Entry : IXposedHookLoadPackage {
+
+    override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
+        if (lpparam.packageName != "com.sec.android.app.camera") return
+
+        XposedBridge.log("SamsungFrameWatermark: loaded in ${lpparam.packageName}")
+
+        // Hook l4.f.h(x1.c) : when arg == SUPPORT_FRAME_WATERMARK => return true
+        try {
+            val featureClass = XposedHelpers.findClass("x1.c", lpparam.classLoader)
+            val supportFrameField = XposedHelpers.getStaticObjectField(featureClass, "SUPPORT_FRAME_WATERMARK")
+
+            XposedHelpers.findAndHookMethod(
+                "l4.f",
+                lpparam.classLoader,
+                "h",
+                featureClass,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val arg = param.args[0]
+                        if (arg == supportFrameField) {
+                            param.result = true
+                            XposedBridge.log("SamsungFrameWatermark: force SUPPORT_FRAME_WATERMARK = true")
+                        }
+                    }
+                }
+            )
+        } catch (t: Throwable) {
+            XposedBridge.log("SamsungFrameWatermark: hook failed: ${t.javaClass.name}: ${t.message}")
+        }
+    }
+}
